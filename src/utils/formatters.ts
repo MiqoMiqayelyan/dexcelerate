@@ -25,10 +25,10 @@ export const formatValue = (value: number) => {
 
 export const getColorByChange = (value: number) => {
   if (value > 0) {
-    return '#52c41a'; // green
+    return '#52c41a';
   }
   if (value < 0) {
-    return '#f5222d'; // red
+    return '#f5222d';
   }
-  return '#8c8c8c'; // gray
+  return '#8c8c8c';
 };

@@ -44,6 +44,6 @@ export interface TokenTableState {
 export type SortOrder = 'ascend' | 'descend' | null;
 
 export interface ColumnSorterProps {
-  compare: (a: any, b: any) => number;
+  compare: <T>(a: T, b: T) => number;
   multiple?: number;
 }

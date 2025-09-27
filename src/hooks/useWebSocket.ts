@@ -15,11 +15,15 @@ import { chainIdToName } from '../utils/chainIdToName';
 
 import { TokenData } from '../types';
 
+interface WebSocketWithHeartbeat extends WebSocket {
+  heartbeatInterval?: NodeJS.Timeout;
+}
+
 const WS_URL = 'wss://api-rs.dexcelerate.com/ws';
 
 
 export const useWebSocket = (options: GetScannerResultParams) => {
-  const ws = useRef<WebSocket | null>(null);
+  const ws = useRef<WebSocketWithHeartbeat | null>(null);
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const subscribedPairs = useRef<Set<string>>(new Set());
@@ -206,7 +210,7 @@ export const useWebSocket = (options: GetScannerResultParams) => {
     }
   }, [subscribeToPair, unsubscribeFromPair]);
 
-  const connectWebSocket = useCallback(() => {
+  const connectWebSocket = useCallback((): void => {
     if (ws.current?.readyState === WebSocket.OPEN) return;
 
     ws.current = new WebSocket(WS_URL);
@@ -224,17 +228,21 @@ export const useWebSocket = (options: GetScannerResultParams) => {
       }, 30000); // Send heartbeat every 30 seconds
 
       // Store interval ID for cleanup
-      (ws.current as any).heartbeatInterval = heartbeatInterval;
+      if (ws.current) {
+        ws.current.heartbeatInterval = heartbeatInterval;
+      }
     };
 
+    if (!ws.current) return;
+    
     ws.current.onclose = (event) => {
       console.log('WebSocket Disconnected:', event.code, event.reason);
       setIsConnected(false);
       subscribedPairs.current.clear();
 
       // Clear heartbeat interval
-      if ((ws.current as any)?.heartbeatInterval) {
-        clearInterval((ws.current as any).heartbeatInterval);
+      if (ws.current?.heartbeatInterval) {
+        clearInterval(ws.current.heartbeatInterval);
       }
 
       // Attempt to reconnect after 5 seconds
@@ -275,8 +283,8 @@ export const useWebSocket = (options: GetScannerResultParams) => {
 
     return () => {
       if (ws.current) {
-        if ((ws.current as any)?.heartbeatInterval) {
-          clearInterval((ws.current as any).heartbeatInterval);
+        if (ws.current?.heartbeatInterval) {
+          clearInterval(ws.current.heartbeatInterval);
         }
         ws.current.close();
       }

@@ -149,8 +149,7 @@ class ScannerService {
     };
   }
 
-  private handleWsMessage(data: any) {
-    // Implementation depends on your specific WebSocket message format
+  private handleWsMessage(data: { tokenAddress: string; swaps: SwapData[]; context: TokenUpdateContext }) {
     const { tokenAddress, swaps, context } = data;
     
     const update = this.handleTickEvent(swaps, context);

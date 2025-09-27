@@ -1,4 +1,6 @@
-export interface WebSocketSubscribeMessage {
+import { TokenData } from './token.types';
+
+export interface WebSocketMessage {
   event: "subscribe-pair" | "subscribe-pair-stats" | "scanner-filter";
   data: {
     pair?: string;
@@ -49,5 +51,5 @@ export interface TickEvent {
 
 export interface ScannerPairsEvent {
   event: "scanner-pairs";
-  data: any[];  // This will be TokenData[] but avoiding circular imports
+  data: TokenData[];
 };

@@ -1,7 +1,7 @@
 import { useRef, useEffect } from "react";
 
 type Timer = ReturnType<typeof setTimeout>;
-type SomeFunction = (...args: any[]) => void;
+type SomeFunction<T extends unknown[] = any[]> = (...args: T) => void;
 /**
  *
  * @param func The original, non debounced function (You can pass any number of args to it)
