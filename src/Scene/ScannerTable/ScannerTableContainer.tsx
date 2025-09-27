@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Row, Col, Card, Select, InputNumber, Switch } from 'antd';
+import { Row, Col, Card, Select, InputNumber, Switch, Flex, Skeleton } from 'antd';
 import { SupportedChain, TokenData, TokenPriceUpdate } from '../../types';
-import TrendingTokensTable from './TrendingTokensTable';
-import NewTokensTable from './NewTokensTable';
+import TrendingTokensTable from './Components/TrendingTokensTable';
+import NewTokensTable from './Components/NewTokensTable';
 import ScannerService from '../../services/scanner.service';
 import { transformData } from '../../utils/transformData';
 import { useDebounce} from '../../hooks/useDabounce';
+import useCheckMobileScreen from '../../hooks/useCheckTableScreen';
 
 interface FilterParams {
   chain: SupportedChain | null;
@@ -16,6 +17,7 @@ interface FilterParams {
 }
 
 const ScannerTableContainer: React.FC = () => {
+  const isColumns = useCheckMobileScreen();
   const scannerService = ScannerService.getInstance();
 
   const [filters, setFilters] = useState<FilterParams>({
@@ -147,36 +149,44 @@ const ScannerTableContainer: React.FC = () => {
         </Row>
       </Card>
 
-      <Row gutter={[24, 24]}>
-        <Col span={12}>
-          <Card title="Trending Tokens">
-            <TrendingTokensTable 
+      <Flex wrap={isColumns} gap="small">
+        <Col span={isColumns ? 24 : 12}>
+          <Card tabProps={{
+            size: 'small'
+          }} title="Trending Tokens">
+            {data ? <TrendingTokensTable 
               filters={filters}
               data={data}
               priceUpdates={priceUpdates}
               onTokensLoad={(tokens) => {
                 tokens.forEach(token => {
-                  scannerService.subscribeToTokenUpdates(token.tokenAddress, handlePriceUpdate);
+                  scannerService.subscribeToTokenUpdates(token, handlePriceUpdate);
                 });
               }}
             />
+ : <Skeleton active paragraph={{ rows: 10 }} />
+}
           </Card>
         </Col>
-        <Col span={12}>
-          <Card title="New Tokens">
+        <Col span={isColumns ? 24 : 12}>
+          <Card tabProps={{
+            size: 'small'
+          }} title="New Tokens">
+            {data ? 
             <NewTokensTable
               filters={filters}
               data={data}
               priceUpdates={priceUpdates}
               onTokensLoad={(tokens) => {
                 tokens.forEach(token => {
-                  scannerService.subscribeToTokenUpdates(token.tokenAddress, handlePriceUpdate);
+                  scannerService.subscribeToTokenUpdates(token, handlePriceUpdate);
                 });
               }}
-            />
+            /> : <Skeleton active paragraph={{ rows: 10 }} />
+}
           </Card>
         </Col>
-      </Row>
+      </Flex>
     </div>
   );
 };

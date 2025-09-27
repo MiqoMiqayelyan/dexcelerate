@@ -1,5 +1,5 @@
 import React from 'react';
-import ScannerTableContainer from './components/ScannerTable/ScannerTableContainer';
+import ScannerTableContainer from './Scene/ScannerTable/ScannerTableContainer';
 
 function App() {
   return (

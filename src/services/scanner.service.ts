@@ -65,35 +65,87 @@ class ScannerService {
     };
   }
 
-  subscribeToTokenUpdates(tokenAddress: string, handler: (update: TokenPriceUpdate) => void) {
+  subscribeToTokenUpdates(token: TokenData, handler: (update: TokenPriceUpdate) => void) {
     this.tokenUpdateHandlers.push(handler);
 
     if (!this.wsConnection) {
       this.connectWebSocket();
     }
 
-    // Subscribe to specific token updates
-    this.wsConnection?.send(JSON.stringify({
-      event: 'subscribe-pair',
-      data: { tokenAddress }
-    }));
+    if (this.wsConnection?.readyState === WebSocket.OPEN) {
+      // Subscribe to pair stats for token updates
+      const pairStatsMessage = {
+        event: "subscribe-pair-stats",
+        data: {
+          pair: token.pairAddress,
+          token: token.tokenAddress,
+          chain: token.chain
+        }
+      };
+      this.wsConnection.send(JSON.stringify(pairStatsMessage));
+
+      // Subscribe to pair ticks for price updates
+      const pairTickMessage = {
+        event: "subscribe-pair",
+        data: {
+          pair: token.pairAddress,
+          token: token.tokenAddress,
+          chain: token.chain
+        }
+      };
+      this.wsConnection.send(JSON.stringify(pairTickMessage));
+    }
   }
 
   private connectWebSocket() {
     const wsUrl = process.env.REACT_APP_WS_URL || 'wss://api-rs.dexcelerate.com/ws';
     this.wsConnection = new WebSocket(wsUrl);
 
-    this.wsConnection.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    // Setup heartbeat mechanism
+    let heartbeatInterval: NodeJS.Timeout;
+
+    this.wsConnection.onopen = () => {
+      console.log('Scanner WebSocket Connected');
       
-      if (data.event === 'tick' && data.data.swaps) {
-        // Handle price updates
-        this.handleWsMessage(data);
+      // Start heartbeat
+      heartbeatInterval = setInterval(() => {
+        if (this.wsConnection?.readyState === WebSocket.OPEN) {
+          this.wsConnection.send(JSON.stringify({ event: 'ping' }));
+        }
+      }, 30000);
+    };
+
+    this.wsConnection.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.event === 'pong') {
+          return;
+        }
+        
+        if (data.event === 'tick' && data.data.swaps) {
+          this.handleWsMessage(data);
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
       }
     };
 
-    this.wsConnection.onclose = () => {
-      setTimeout(() => this.connectWebSocket(), 5000); // Reconnect after 5 seconds
+    this.wsConnection.onclose = (event) => {
+      console.log('Scanner WebSocket Disconnected:', event.code, event.reason);
+      
+      // Clear heartbeat
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+
+      // Attempt to reconnect after 5 seconds
+      setTimeout(() => {
+        if (!this.wsConnection || this.wsConnection.readyState === WebSocket.CLOSED) {
+          console.log('Attempting to reconnect scanner WebSocket...');
+          this.connectWebSocket();
+        }
+      }, 5000);
     };
   }
 

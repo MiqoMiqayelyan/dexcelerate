@@ -9,8 +9,9 @@ import {
   ScannerResult,
   GetScannerResultParams,
   WsTokenSwap,
-  chainIdToName
 } from '../globalTypes';
+
+import { chainIdToName } from '../utils/chainIdToName';
 
 import { TokenData } from '../types';
 
@@ -205,33 +206,82 @@ export const useWebSocket = (options: GetScannerResultParams) => {
     }
   }, [subscribeToPair, unsubscribeFromPair]);
 
-  useEffect(() => {
+  const connectWebSocket = useCallback(() => {
+    if (ws.current?.readyState === WebSocket.OPEN) return;
+
     ws.current = new WebSocket(WS_URL);
 
     ws.current.onopen = () => {
       console.log('WebSocket Connected');
       setIsConnected(true);
       subscribeToScanner();
+      
+      // Start heartbeat
+      const heartbeatInterval = setInterval(() => {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(JSON.stringify({ event: 'ping' }));
+        }
+      }, 30000); // Send heartbeat every 30 seconds
+
+      // Store interval ID for cleanup
+      (ws.current as any).heartbeatInterval = heartbeatInterval;
     };
 
-    ws.current.onclose = () => {
-      console.log('WebSocket Disconnected');
+    ws.current.onclose = (event) => {
+      console.log('WebSocket Disconnected:', event.code, event.reason);
       setIsConnected(false);
       subscribedPairs.current.clear();
+
+      // Clear heartbeat interval
+      if ((ws.current as any)?.heartbeatInterval) {
+        clearInterval((ws.current as any).heartbeatInterval);
+      }
+
+      // Attempt to reconnect after 5 seconds
+      setTimeout(() => {
+        if (!ws.current || ws.current.readyState === WebSocket.CLOSED) {
+          console.log('Attempting to reconnect...');
+          connectWebSocket();
+        }
+      }, 5000);
     };
 
     ws.current.onerror = (error) => {
       console.error('WebSocket Error:', error);
+      // Only attempt to reconnect if the connection is closed
+      if (ws.current?.readyState === WebSocket.CLOSED) {
+        setTimeout(() => connectWebSocket(), 5000);
+      }
     };
 
-    ws.current.onmessage = handleMessage;
+    ws.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Handle pong response to keep connection alive
+        if (data.event === 'pong') {
+          return;
+        }
 
-    return () => {
-      if (ws.current) {
-        ws.current.close();
+        handleMessage(event);
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
       }
     };
   }, [handleMessage, subscribeToScanner]);
+
+  useEffect(() => {
+    connectWebSocket();
+
+    return () => {
+      if (ws.current) {
+        if ((ws.current as any)?.heartbeatInterval) {
+          clearInterval((ws.current as any).heartbeatInterval);
+        }
+        ws.current.close();
+      }
+    };
+  }, [connectWebSocket]);
 
   useEffect(() => {
     currentOptions.current = options;

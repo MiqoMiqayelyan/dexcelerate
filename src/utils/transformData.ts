@@ -24,9 +24,9 @@ export const transformData = (data: ScannerResult[]) => {
         sells: item.sells || 0
       },
       liquidity: {
-current: parseFloat(item.liquidity || '0'),
-changePc: parseFloat(item.percentChangeInLiquidity || '0')
-},
+        current: parseFloat(item.liquidity || '0'),
+        changePc: parseFloat(item.percentChangeInLiquidity || '0')
+      },
       audit: {
         mintable: !item.isMintAuthDisabled,
         freezable: !item.isFreezeAuthDisabled,

@@ -1,45 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Table } from 'antd';
-import { TokenData, NewTokensTableProps } from '../../../types';
-import { useWebSocket } from '../../../hooks/useWebSocket';
-import { formatPrice, formatValue, getColorByChange } from '../../../utils/formatters';
+import { TokenData } from "../../../types";
+import { formatPrice, formatValue, getColorByChange } from "../../../utils/formatters";
 
-const NewTokensTable: React.FC<NewTokensTableProps> = ({ 
-  filters,
-  data, 
-  priceUpdates, 
-  onTokensLoad 
-}) => {
-  const [tableData, setTableData] = useState<TokenData[]>([]);
-  const { tokens, isConnected } = useWebSocket({
-    rankBy: 'age',
-    ...filters,
-  });
-
-  useEffect(() => {
-      if (data) {
-        setTableData(data);
-      }
-    }, [data]);
-
-  useEffect(() => {
-    if (tokens.length > 0) {
-      setTableData(tokens.map(token => {
-        const update = priceUpdates[token.tokenAddress];
-        if (update) {
-          return {
-            ...token,
-            priceUsd: update.newPrice,
-            mcap: update.newMarketCap,
-          };
-        }
-        return token;
-      }));
-      onTokensLoad(tokens);
-    }
-  }, [tokens, priceUpdates, onTokensLoad]);
-
-  const columns = [
+export const useNewTokensTableColumns = () => {
+  return [
     {
       title: 'Token',
       key: 'token0Symbol',
@@ -91,15 +54,49 @@ const NewTokensTable: React.FC<NewTokensTableProps> = ({
       render: (value: number) => formatValue(value),
     },
     {
-      title: '5m',
-      dataIndex: 'priceChangePcs',
-      key: 'priceChangePcs',
-            render: (priceChangePcs: Record<string, number> | undefined) => (
-              <span style={{ color: getColorByChange(Number(priceChangePcs?.['5m'] ?? 0)) }}>
-                {(Number(priceChangePcs?.['5m'] ?? 0)).toFixed(2)}%
+          title: 'Price Change (5m, 1h, 6h, 24h)',
+          dataIndex: 'priceChangePcs',
+          key: 'priceChangePcs',
+          children: [{
+            title: '5m',
+            dataIndex: ['priceChangePcs', '5m'],
+            key: 'priceChange5m',
+            render: (priceChangePcs: number | undefined) => (
+            <span style={{ color: getColorByChange(Number(priceChangePcs ?? 0)) }}>
+              {priceChangePcs}%
+            </span>
+          ),
+          }, 
+          {
+            title: '1h',
+            dataIndex: ['priceChangePcs', '1h'],
+            key: 'priceChange1h',
+            render: (priceChangePcs: number | undefined) => (
+              <span style={{ color: getColorByChange(Number(priceChangePcs ?? 0)) }}>
+                {priceChangePcs}%
               </span>
-            )
-    },
+            ),
+          },
+        {
+          title: '6h',
+          dataIndex: ['priceChangePcs', '6h'],
+          key: 'priceChange6h',
+          render: (priceChangePcs: number | undefined) => (
+            <span style={{ color: getColorByChange(Number(priceChangePcs ?? 0)) }}>
+              {(priceChangePcs ?? 0)}%
+            </span>
+          ),
+        }, {
+          title: '24h',
+          dataIndex: ['priceChangePcs', '24h'],
+          key: 'priceChange24h',
+          render: (priceChangePcs: number | undefined) => (
+            <span style={{ color: getColorByChange(Number(priceChangePcs ?? 0)) }}>
+              {priceChangePcs ?? 0}%
+            </span>
+          ),
+        }]
+        },
     {
       title: 'Liquidity',
       dataIndex: ['liquidity', 'current'],
@@ -131,18 +128,4 @@ const NewTokensTable: React.FC<NewTokensTableProps> = ({
       ),
     },
   ];
-
-  return (
-    <Table
-      dataSource={tableData}
-      columns={columns}
-      rowKey="id"
-      loading={!isConnected}
-      pagination={{ pageSize: 50 }}
-      scroll={{ x: true }}
-      size="middle"
-    />
-  );
-};
-
-export default NewTokensTable;
+}

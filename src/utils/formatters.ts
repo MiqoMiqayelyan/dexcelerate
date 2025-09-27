@@ -11,7 +11,6 @@ export const formatPrice = (value: number) => {
 };
 
 export const formatValue = (value: number) => {
-    console.log(value, 'value in formatter');
   if (value >= 1000000000) {
     return `$${(value / 1000000000).toFixed(2)}B`;
   }
