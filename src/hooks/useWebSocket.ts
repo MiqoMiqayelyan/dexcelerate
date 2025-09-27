@@ -10,10 +10,12 @@ import {
   GetScannerResultParams,
   WsTokenSwap,
 } from '../globalTypes';
+import { 
+  TokenData,
+  TokenPriceUpdate
+} from '../types';
 
 import { chainIdToName } from '../utils/chainIdToName';
-
-import { TokenData } from '../types';
 
 interface WebSocketWithHeartbeat extends WebSocket {
   heartbeatInterval?: NodeJS.Timeout;
@@ -22,12 +24,15 @@ interface WebSocketWithHeartbeat extends WebSocket {
 const WS_URL = 'wss://api-rs.dexcelerate.com/ws';
 
 
-export const useWebSocket = (options: GetScannerResultParams) => {
+export const useWebSocket = (options: GetScannerResultParams, data: TokenData[] | null) => {
   const ws = useRef<WebSocketWithHeartbeat | null>(null);
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const subscribedPairs = useRef<Set<string>>(new Set());
   const currentOptions = useRef(options);
+  const tokenUpdateHandlers = useRef<((update: TokenPriceUpdate) => void)[]>([]);
+
+
 
   const subscribeToScanner = useCallback(() => {
     if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
@@ -91,6 +96,19 @@ export const useWebSocket = (options: GetScannerResultParams) => {
     ws.current.send(JSON.stringify(pairTickMessage));
 
     subscribedPairs.current.delete(token.pairAddress);
+  }, []);
+
+  // Public method to subscribe to token price updates
+  const subscribeToTokenUpdates = useCallback((token: TokenData, handler: (update: TokenPriceUpdate) => void) => {
+    tokenUpdateHandlers.current.push(handler);
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      subscribeToPair(token);
+    }
+  }, [subscribeToPair]);
+
+  // Public method to unsubscribe from token updates
+  const unsubscribeFromTokenUpdates = useCallback((handler: (update: TokenPriceUpdate) => void) => {
+    tokenUpdateHandlers.current = tokenUpdateHandlers.current.filter(h => h !== handler);
   }, []);
 
   const handleMessage = useCallback((event: MessageEvent) => {
@@ -164,6 +182,15 @@ export const useWebSocket = (options: GetScannerResultParams) => {
                 if (subscribedPairs.current.has(token.pairAddress)) {
                   const newPrice = parseFloat(latestSwap.priceToken1Usd);
                   const mcap = token.mcap / token.priceUsd * newPrice;
+                  
+                  // Notify price update handlers
+                  const priceUpdate: TokenPriceUpdate = {
+                    tokenAddress: token.tokenAddress,
+                    newPrice,
+                    newMarketCap: mcap,
+                    type: latestSwap.tokenInAddress === token.tokenAddress ? 'sell' : 'buy'
+                  };
+                  tokenUpdateHandlers.current.forEach(handler => handler(priceUpdate));
                   
                   return {
                     ...token,
@@ -298,5 +325,16 @@ export const useWebSocket = (options: GetScannerResultParams) => {
     }
   }, [isConnected, subscribeToScanner, options]);
 
-  return { tokens, isConnected };
+  useEffect(() => {
+    if (data && tokens.length === 0) {
+      setTokens(data);
+    }
+  }, [data, tokens.length]);
+
+  return { 
+    tokens, 
+    isConnected, 
+    subscribeToTokenUpdates, 
+    unsubscribeFromTokenUpdates 
+  };
 };

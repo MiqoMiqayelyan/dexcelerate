@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Row, Col, Card, Select, InputNumber, Switch, Flex, Skeleton } from 'antd';
-import { SupportedChain, TokenData, TokenPriceUpdate } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { Row, Col, Card, Select, InputNumber, Switch, Flex } from 'antd';
+import { SupportedChain, TokenData } from '../../types';
 import TrendingTokensTable from './Components/TrendingTokensTable';
 import NewTokensTable from './Components/NewTokensTable';
-import ScannerService from '../../services/scanner.service';
-import { transformData } from '../../utils/transformData';
-import { useDebounce} from '../../hooks/useDabounce';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import { useDebounce } from '../../hooks/useDabounce';
 import useCheckMobileScreen from '../../hooks/useCheckTableScreen';
+import { transformData } from '../../utils/transformData';
+import { getScannerResults } from '../../api/getScannerResults';
 
 interface FilterParams {
   chain: SupportedChain | null;
@@ -18,7 +19,6 @@ interface FilterParams {
 
 const ScannerTableContainer: React.FC = () => {
   const isColumns = useCheckMobileScreen();
-  const scannerService = ScannerService.getInstance();
 
   const [filters, setFilters] = useState<FilterParams>({
     chain: null,
@@ -27,40 +27,27 @@ const ScannerTableContainer: React.FC = () => {
     minMcap: undefined,
     isNotHP: true
   });
-  const [priceUpdates, setPriceUpdates] = useState<Record<string, TokenPriceUpdate>>({});
   const [data, setData] = useState<TokenData[] | null>(null);
 
-  const handlePriceUpdate = (update: TokenPriceUpdate) => {
-    setPriceUpdates(prev => ({
-      ...prev,
-      [update.tokenAddress]: update
-    }));
+  const getScanner = async (filters: FilterParams) => {
+    try {
+     const data = await getScannerResults(filters);
+            setData(transformData(data?.pairs || []));
+    } catch (err) {
+      console.error(err);
+    }
+      
   };
 
-  const getScanner = useCallback((filters: FilterParams) => {
-     scannerService.getScannerResults(filters).then((data) => {
-            setData(transformData(data?.pairs || []));
 
-        }).catch((err) => console.error(err));
-  }, [scannerService]);
+  // Use the WebSocket hook for real-time data
+  const { tokens, isConnected } = useWebSocket(filters, data);
 
-  useEffect(() => {
-    if(data) return;
-    getScanner(filters);
-
-  }, [filters, data, scannerService, getScanner]);
-
-  useEffect(() => {
-   
-    return () => {
-      scannerService.disconnect();
-    };
-  }, [scannerService]);
 
   const handleChainChange = (value: SupportedChain | null) => {
     setFilters(prev => ({ ...prev, chain: value }));
     getScanner({ ...filters, chain: value });
-}
+  };
 
   const handleMinVolumeChange = (value: number | null) => {
     setFilters(prev => ({ ...prev, minVolume: value || undefined }));
@@ -82,6 +69,13 @@ const ScannerTableContainer: React.FC = () => {
     getScanner({ ...filters, isNotHP: checked });
   };
 
+  useEffect(() => {
+    if(data) return;
+    getScanner(filters);
+
+  }, [filters, data]);
+
+  // Debounce filter changes to prevent too many WebSocket reconnections
   const debouncedMaxAgeChange = useDebounce(handleMaxAgeChange, 500);
   const debouncedMinMcapChange = useDebounce(handleMinMcapChange, 500);
   const debouncedMinVolumeChange = useDebounce(handleMinVolumeChange, 500);
@@ -151,39 +145,19 @@ const ScannerTableContainer: React.FC = () => {
 
       <Flex wrap={isColumns} gap="small">
         <Col span={isColumns ? 24 : 12}>
-          <Card tabProps={{
-            size: 'small'
-          }} title="Trending Tokens">
-            {data ? <TrendingTokensTable 
-              filters={filters}
-              data={data}
-              priceUpdates={priceUpdates}
-              onTokensLoad={(tokens) => {
-                tokens.forEach(token => {
-                  scannerService.subscribeToTokenUpdates(token, handlePriceUpdate);
-                });
-              }}
+          <Card title="Trending Tokens">
+            <TrendingTokensTable
+              data={tokens}
+              isConnected={isConnected}
             />
- : <Skeleton active paragraph={{ rows: 10 }} />
-}
           </Card>
         </Col>
         <Col span={isColumns ? 24 : 12}>
-          <Card tabProps={{
-            size: 'small'
-          }} title="New Tokens">
-            {data ? 
+          <Card title="New Tokens">
             <NewTokensTable
-              filters={filters}
-              data={data}
-              priceUpdates={priceUpdates}
-              onTokensLoad={(tokens) => {
-                tokens.forEach(token => {
-                  scannerService.subscribeToTokenUpdates(token, handlePriceUpdate);
-                });
-              }}
-            /> : <Skeleton active paragraph={{ rows: 10 }} />
-}
+              data={tokens}
+              isConnected={isConnected}
+            />
           </Card>
         </Col>
       </Flex>

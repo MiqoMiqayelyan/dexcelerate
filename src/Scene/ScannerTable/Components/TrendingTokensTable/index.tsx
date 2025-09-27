@@ -1,43 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Table } from 'antd';
-import { TokenData, TrendingTokensTableProps } from '../../../../types';
-import { useWebSocket } from '../../../../hooks/useWebSocket';
+import { TrendingTokensTableProps } from '../../../../types';
 import { useTrendingTokensTableColumns } from '../../hooks/useTrendingTokensTableColumns';
 
 const TrendingTokensTable: React.FC<TrendingTokensTableProps> = ({ 
-  filters,
   data,
-  priceUpdates, 
-  onTokensLoad 
+  isConnected 
 }) => {
-  const [tableData, setTableData] = useState<TokenData[]>(data || []);
-  const { tokens, isConnected } = useWebSocket({
-    rankBy: 'volume',
-    ...filters,
-  });
-
   const columns = useTrendingTokensTableColumns();
-
-  useEffect(() => {
-    if (tokens.length > 0) {
-      setTableData(tokens.map(token => {
-        const update = priceUpdates[token.tokenAddress];
-        if (update) {
-          return {
-            ...token,
-            price: update.newPrice,
-            mcap: update.newMarketCap,
-          };
-        }
-        return token;
-      }));
-      onTokensLoad(tokens);
-    }
-  }, [tokens, priceUpdates, onTokensLoad]);
 
   return (
     <Table
-      dataSource={tableData}
+      dataSource={data || []}
       columns={columns}
       rowKey="id"
       loading={!isConnected}

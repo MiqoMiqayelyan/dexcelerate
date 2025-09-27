@@ -1,7 +1,6 @@
 import type { TableColumnType } from 'antd';
 import { TokenData, SupportedChain } from './token.types';
 import { TokenPriceUpdate } from './price.types';
-import { ScannerApiResponse } from '../globalTypes';
 
 export interface FilterParams {
   chain: SupportedChain | null;
@@ -27,9 +26,15 @@ export interface TokenTableProps extends BaseTableProps {
   defaultSort?: SorterConfig;
 }
 
-export interface TrendingTokensTableProps extends BaseTableProps {}
+export interface TrendingTokensTableProps {
+  data: TokenData[];
+  isConnected: boolean;
+}
 
-export interface NewTokensTableProps extends BaseTableProps {}
+export interface NewTokensTableProps {
+  data: TokenData[];
+  isConnected: boolean;
+}
 
 export interface SorterConfig {
   field: keyof TokenData;
